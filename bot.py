@@ -1,6 +1,6 @@
 import logging
 import asyncio
-from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, MessageHandler, filters
+from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler
 
 import config
 import handlers
@@ -24,9 +24,9 @@ async def main():
     await app.initialize()
     
     app.add_handler(CommandHandler("start", handlers.start))
-    app.add_handler(CommandHandler("cancel", handlers.cancel))
+    app.add_handler(CommandHandler("add", handlers.add_task))
+    app.add_handler(CommandHandler("del", handlers.delete_task_cmd))
     app.add_handler(CallbackQueryHandler(handlers.button_handler))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handlers.text_handler))
     
     scheduler_instance = scheduler.start_scheduler(app)
     
