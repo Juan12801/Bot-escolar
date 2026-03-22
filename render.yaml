@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: bot-escolar
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python bot.py
+    envVars:
+      - key: BOT_TOKEN
+        sync: false
+      - key: MONGO_URI
+        sync: false
+      - key: DATABASE_NAME
+        value: bot_escolar
+      - key: COLLECTION_NAME
+        value: tareas
+      - key: GROUP_CHAT_ID
+        value: "-5204375430"
+      - key: NOTIFICATION_HOUR
+        value: "15"
