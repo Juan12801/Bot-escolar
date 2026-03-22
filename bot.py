@@ -26,8 +26,7 @@ async def main():
     conv_handler = ConversationHandler(
         entry_points=[
             CommandHandler("start", handlers.start),
-            CallbackQueryHandler(handlers.button_handler, pattern="^(add|list|delete|help|menu)$"),
-            CallbackQueryHandler(handlers.delete_callback, pattern="^del_"),
+            CallbackQueryHandler(handlers.button_handler),
         ],
         states={
             handlers.TASK_NAME: [
@@ -39,7 +38,7 @@ async def main():
         },
         fallbacks=[
             CommandHandler("cancel", handlers.cancel),
-            CallbackQueryHandler(handlers.menu_callback, pattern="^menu$")
+            CallbackQueryHandler(handlers.button_handler),
         ]
     )
     
