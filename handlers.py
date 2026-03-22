@@ -1,158 +1,222 @@
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ContextTypes, CallbackQueryHandler, CommandHandler
+from telegram.ext import (
+    ContextTypes,
+    CallbackQueryHandler,
+    CommandHandler,
+    MessageHandler,
+    ConversationHandler,
+    filters,
+)
 import database
 import datetime
 import logging
 
 logger = logging.getLogger(__name__)
 
+TASK_INPUT = 1
 
-def get_admin_menu():
+
+def get_main_menu():
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("📋 Ver Tareas", callback_data="list")],
-        [InlineKeyboardButton("🗑️ Eliminar", callback_data="delete")],
-        [InlineKeyboardButton("❓ Ayuda", callback_data="help")]
+        [InlineKeyboardButton("Ver Tareas", callback_data="list")],
+        [InlineKeyboardButton("Añadir Tarea", callback_data="add")],
+        [InlineKeyboardButton("Eliminar", callback_data="delete")],
+        [InlineKeyboardButton("Ayuda", callback_data="help")]
     ])
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "👋 *Bot Escolar*\n\n"
-        "Gestiona tareas y recibe recordatorios 2 días antes a las 3 PM.\n\n"
-        "Usa /add <nombre> para crear tarea\n"
-        "Ejemplo: /add Tarea de mates\n\n"
-        "O selecciona:",
+        "*Bot Escolar*\n\n"
+        "Gestiona tus tareas y recibe recordatorios 2 dias antes a las 3 PM.\n\n"
+        "Usa los botones para navegar:",
         parse_mode="Markdown",
-        reply_markup=get_admin_menu()
+        reply_markup=get_main_menu()
     )
 
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    
+
     try:
         await query.answer()
-    except:
+    except Exception:
         pass
-    
+
     data = query.data
-    
-    if data == "list":
+
+    if data == "menu":
+        await query.edit_message_text(
+            "Selecciona una opcion:",
+            reply_markup=get_main_menu()
+        )
+
+    elif data == "list":
         try:
             tasks = database.get_all_tasks()
-            
+
             if not tasks:
-                await query.edit_message_text("📋 No hay tareas\n\nSelecciona:", reply_markup=get_admin_menu())
+                await query.edit_message_text(
+                    "No hay tareas\n\nSelecciona:",
+                    reply_markup=get_main_menu()
+                )
                 return
-            
-            text = "📋 *Tareas:*\n\n"
+
+            text = "*Tareas:*\n\n"
             for t in tasks:
-                text += f"• {t['task_name']} ({t['due_date']})\n"
-            
-            keyboard = [[InlineKeyboardButton("🔙 Menú", callback_data="menu")]]
-            await query.edit_message_text(text, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
+                text += f"- {t['task_name']} ({t['due_date']})\n"
+
+            keyboard = [[InlineKeyboardButton("Menu", callback_data="menu")]]
+            await query.edit_message_text(
+                text,
+                parse_mode="Markdown",
+                reply_markup=InlineKeyboardMarkup(keyboard)
+            )
         except Exception as e:
             logger.error(f"Error listing tasks: {e}")
-            await query.edit_message_text("❌ Error al cargar tareas")
-    
+            await query.edit_message_text("Error al cargar tareas")
+
+    elif data == "add":
+        await query.edit_message_text(
+            "Escribe la tarea y fecha en formato:\n"
+            "`Tarea YYYY-MM-DD`\n\n"
+            "Ejemplo: Matematicas 2026-03-21",
+            parse_mode="Markdown",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("Cancelar", callback_data="menu")]
+            ])
+        )
+        return TASK_INPUT
+
     elif data == "delete":
         try:
             tasks = database.get_all_tasks()
-            
+
             if not tasks:
-                await query.edit_message_text("📋 No hay tareas\n\nSelecciona:", reply_markup=get_admin_menu())
+                await query.edit_message_text(
+                    "No hay tareas\n\nSelecciona:",
+                    reply_markup=get_main_menu()
+                )
                 return
-            
+
             keyboard = []
             for task in tasks:
-                keyboard.append([InlineKeyboardButton(f"❌ {task['task_name']}", callback_data=f"d_{task['_id']}")])
-            keyboard.append([InlineKeyboardButton("🔙 Menú", callback_data="menu")])
-            
-            await query.edit_message_text("🗑️ Selecciona tarea:", reply_markup=InlineKeyboardMarkup(keyboard))
+                keyboard.append([
+                    InlineKeyboardButton(
+                        f"Eliminar: {task['task_name']}",
+                        callback_data=f"d_{task['_id']}"
+                    )
+                ])
+            keyboard.append([InlineKeyboardButton("Cancelar", callback_data="menu")])
+
+            await query.edit_message_text(
+                "Selecciona tarea a eliminar:",
+                reply_markup=InlineKeyboardMarkup(keyboard)
+            )
         except Exception as e:
             logger.error(f"Error in delete: {e}")
-            await query.edit_message_text("❌ Error")
-    
+            await query.edit_message_text("Error")
+
     elif data == "help":
         await query.edit_message_text(
-            "📚 *Ayuda*\n\n"
-            "/add <nombre> - Crear tarea\n"
-            "   Ej: /add Tarea de mates\n\n"
-            "/del <nombre> - Eliminar tarea\n"
-            "   Ej: /del Tarea de mates\n\n"
-            "📋 Ver - Ver todas las tareas\n"
-            "⏰ Recordatorio: 2 días antes 3 PM",
+            "*Ayuda*\n\n"
+            "- Ver Tareas: Lista todas las tareas\n"
+            "- Anadir Tarea: Crea una tarea nueva\n"
+            "- Eliminar: Elimina una tarea\n"
+            "- Formato fecha: YYYY-MM-DD\n\n"
+            "Recordatorio: 2 dias antes a las 3 PM",
             parse_mode="Markdown",
-            reply_markup=get_admin_menu()
+            reply_markup=get_main_menu()
         )
-    
-    elif data == "menu":
-        await query.edit_message_text("Selecciona:", reply_markup=get_admin_menu())
-    
+
     elif data.startswith("d_"):
         try:
             task_id = data[2:]
             task = database.get_task_by_id(task_id)
-            
+
             if task:
                 database.delete_task(task_id, task["user_id"])
-                await query.edit_message_text(f"✅ Eliminada: {task['task_name']}", reply_markup=get_admin_menu())
+                await query.edit_message_text(
+                    f"Tarea eliminada: {task['task_name']}",
+                    reply_markup=get_main_menu()
+                )
             else:
-                await query.edit_message_text("❌ No encontrada", reply_markup=get_admin_menu())
+                await query.edit_message_text(
+                    "Tarea no encontrada",
+                    reply_markup=get_main_menu()
+                )
         except Exception as e:
             logger.error(f"Error deleting: {e}")
-            await query.edit_message_text("❌ Error al eliminar")
+            await query.edit_message_text("Error al eliminar")
 
 
-async def add_task(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not context.args:
-        await update.message.reply_text("Usa: /add <nombre de tarea>\nEjemplo: /add Tarea de mates")
-        return
-    
+async def handle_task_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_input = update.message.text.strip()
+
+    parts = user_input.rsplit(" ", 1)
+
+    if len(parts) != 2:
+        await update.message.reply_text(
+            "Formato incorrecto. Usa: `Tarea YYYY-MM-DD`\n\n"
+            "Ejemplo: Matematicas 2026-03-21",
+            parse_mode="Markdown",
+            reply_markup=get_main_menu()
+        )
+        return ConversationHandler.END
+
+    task_name = parts[0].strip()
+    due_date = parts[1].strip()
+
     try:
-        task_name = " ".join(context.args)
-        today = datetime.date.today()
-        due_date = (today + datetime.timedelta(days=7)).strftime("%Y-%m-%d")
-        
+        datetime.datetime.strptime(due_date, "%Y-%m-%d")
+    except ValueError:
+        await update.message.reply_text(
+            "Fecha invalida. Usa formato: YYYY-MM-DD\n\n"
+            "Ejemplo: 2026-03-21",
+            parse_mode="Markdown",
+            reply_markup=get_main_menu()
+        )
+        return ConversationHandler.END
+
+    if not task_name:
+        await update.message.reply_text(
+            "El nombre de la tarea no puede estar vacio.",
+            reply_markup=get_main_menu()
+        )
+        return ConversationHandler.END
+
+    try:
         user_id = update.message.from_user.id
         username = update.message.from_user.username or update.message.from_user.first_name
-        
+
         logger.info(f"Adding task: {task_name} for user {user_id}")
-        
+
         task_id = database.add_task(user_id, username, task_name, due_date)
         logger.info(f"Task added with ID: {task_id}")
-        
+
         await update.message.reply_text(
-            f"✅ *Tarea creada*\n\n📝 {task_name}\n📅 {due_date}",
+            f"Tarea creada:\n\n"
+            f"*{task_name}*\n"
+            f"Fecha: {due_date}",
             parse_mode="Markdown",
-            reply_markup=get_admin_menu()
+            reply_markup=get_main_menu()
         )
     except Exception as e:
         logger.error(f"Error adding task: {e}")
-        await update.message.reply_text(f"❌ Error al crear tarea: {str(e)}")
+        await update.message.reply_text(
+            f"Error al crear tarea: {str(e)}",
+            reply_markup=get_main_menu()
+        )
+
+    return ConversationHandler.END
 
 
-async def delete_task_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not context.args:
-        await update.message.reply_text("Usa: /del <nombre de tarea>")
-        return
-    
-    try:
-        task_name = " ".join(context.args).lower()
-        tasks = database.get_all_tasks()
-        user_id = update.message.from_user.id
-        
-        deleted = False
-        for task in tasks:
-            if task["task_name"].lower() == task_name and task["user_id"] == user_id:
-                database.delete_task(task["_id"], user_id)
-                deleted = True
-                break
-        
-        if deleted:
-            await update.message.reply_text(f"✅ Eliminada: {task_name}", reply_markup=get_admin_menu())
-        else:
-            await update.message.reply_text("❌ Tarea no encontrada o no te pertenece", reply_markup=get_admin_menu())
-    except Exception as e:
-        logger.error(f"Error deleting task: {e}")
-        await update.message.reply_text(f"❌ Error: {str(e)}")
+conv_handler = ConversationHandler(
+    entry_points=[CallbackQueryHandler(button_handler)],
+    states={
+        TASK_INPUT: [
+            MessageHandler(filters.TEXT & ~filters.COMMAND, handle_task_input)
+        ],
+    },
+    fallbacks=[],
+)

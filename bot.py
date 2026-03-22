@@ -24,9 +24,7 @@ async def main():
     await app.initialize()
     
     app.add_handler(CommandHandler("start", handlers.start))
-    app.add_handler(CommandHandler("add", handlers.add_task))
-    app.add_handler(CommandHandler("del", handlers.delete_task_cmd))
-    app.add_handler(CallbackQueryHandler(handlers.button_handler))
+    app.add_handler(handlers.conv_handler)
     
     scheduler_instance = scheduler.start_scheduler(app)
     
