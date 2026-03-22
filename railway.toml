@@ -1,0 +1,19 @@
+[railway]
+  plugin = ["python"]
+
+[build]
+  builder = "python"
+
+[deploy]
+  startCommand = "python bot.py"
+  restartPolicyType = "ON_FAILURE"
+  restartPolicyAmount = 5
+
+[environments]
+  [environments.variables]
+    BOT_TOKEN = "8786419029:AAExX_rnpcLm-NACY3t6tgVlDPcV936rVSY"
+    MONGO_URI = "mongodb+srv://palaciojuanjose12:Juan12801@cluster0.ufoj7wq.mongodb.net/?appName=Cluster0"
+    DATABASE_NAME = "bot_escolar"
+    COLLECTION_NAME = "tareas"
+    GROUP_CHAT_ID = "-5204375430"
+    NOTIFICATION_HOUR = "15"
