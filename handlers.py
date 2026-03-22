@@ -23,14 +23,22 @@ def get_user_menu():
 
 
 def get_date_menu(task_name):
-    keyboard = [
-        [InlineKeyboardButton("📅 Mañana", callback_data=f"date_tomorrow_{task_name}")],
-        [InlineKeyboardButton("📅 Pasado mañana", callback_data=f"date_dayafter_{task_name}")],
-        [InlineKeyboardButton("📅 3 días", callback_data=f"date_3days_{task_name}")],
-        [InlineKeyboardButton("📅 1 semana", callback_data=f"date_week_{task_name}")],
-        [InlineKeyboardButton("📅 Otra fecha", callback_data=f"date_other_{task_name}")]
-    ]
-    return InlineKeyboardMarkup(keyboard)
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("📅 Mañana", callback_data=f"t_{task_name}_1")],
+        [InlineKeyboardButton("📅 Pasado mañana", callback_data=f"t_{task_name}_2")],
+        [InlineKeyboardButton("📅 3 días", callback_data=f"t_{task_name}_3")],
+        [InlineKeyboardButton("📅 1 semana", callback_data=f"t_{task_name}_7")],
+        [InlineKeyboardButton("📅 Otra fecha", callback_data=f"o_{task_name}")]
+    ])
+
+
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    admin = await is_admin(update, context)
+    await update.message.reply_text(
+        "👋 *Bot Escolar*\n\nGestiona tareas y recibe recordatorios 2 días antes a las 3 PM.\n\nSelecciona:",
+        parse_mode="Markdown",
+        reply_markup=get_admin_menu() if admin else get_user_menu()
+    )
 
 
 async def is_admin(update, context):
@@ -44,178 +52,174 @@ async def is_admin(update, context):
         return False
 
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    admin = await is_admin(update, context)
-    await context.bot.send_message(
-        chat_id=update.effective_chat.id,
-        text="👋 *Bot Escolar*\n\nGestiona tareas y recibe recordatorios 2 días antes a las 3 PM.\n\nSelecciona:",
-        parse_mode="Markdown",
-        reply_markup=get_admin_menu() if admin else get_user_menu()
-    )
-
-
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    user_id = query.from_user.id
-    chat_id = query.message.chat_id
+    await query.answer()
     
-    try:
-        await query.answer()
-    except:
-        pass
-    
-    admin = await is_admin(update, context)
     data = query.data
+    chat_id = query.message.chat_id
+    user_id = query.from_user.id
+    admin = await is_admin(update, context)
     
     if data == "add":
         if not admin:
-            await context.bot.send_message(chat_id=chat_id, text="❌ Solo administradores")
+            await query.edit_message_text("❌ Solo administradores")
             return
-        
-        user_data[user_id] = {"step": "name"}
-        await context.bot.send_message(chat_id=chat_id, text="📝 Escribe el nombre de la tarea:")
-        return
-    
-    elif data == "delete":
-        if not admin:
-            await context.bot.send_message(chat_id=chat_id, text="❌ Solo administradores")
-            return
-        
-        tasks = database.get_all_tasks()
-        if not tasks:
-            await context.bot.send_message(chat_id=chat_id, text="📋 No hay tareas", reply_markup=get_admin_menu())
-            return
-        
-        keyboard = []
-        for task in tasks:
-            keyboard.append([InlineKeyboardButton(f"❌ {task['task_name']}", callback_data=f"del_{task['_id']}")])
-        keyboard.append([InlineKeyboardButton("🔙 Menú", callback_data="menu")])
-        
-        await context.bot.send_message(chat_id=chat_id, text="🗑️ Selecciona tarea:", reply_markup=InlineKeyboardMarkup(keyboard))
-        return
+        user_data[user_id] = "waiting_name"
+        await query.edit_message_text("📝 Escribe el nombre de la tarea:")
     
     elif data == "list":
         tasks = database.get_all_tasks()
         menu = get_admin_menu() if admin else get_user_menu()
         
         if not tasks:
-            await context.bot.send_message(chat_id=chat_id, text="📋 No hay tareas", reply_markup=menu)
+            await query.edit_message_text("📋 No hay tareas", reply_markup=menu)
             return
         
         text = "📋 *Tareas:*\n\n"
         for t in tasks:
             text += f"• {t['task_name']} ({t['due_date']}) - @{t['username']}\n"
         
-        await context.bot.send_message(chat_id=chat_id, text=text, parse_mode="Markdown", reply_markup=menu)
-        return
+        await query.edit_message_text(text, parse_mode="Markdown", reply_markup=menu)
+    
+    elif data == "delete":
+        if not admin:
+            await query.edit_message_text("❌ Solo administradores")
+            return
+        
+        tasks = database.get_all_tasks()
+        if not tasks:
+            await query.edit_message_text("📋 No hay tareas", reply_markup=get_admin_menu())
+            return
+        
+        keyboard = []
+        for task in tasks:
+            keyboard.append([InlineKeyboardButton(f"❌ {task['task_name']}", callback_data=f"d_{task['_id']}")])
+        keyboard.append([InlineKeyboardButton("🔙 Menú", callback_data="menu")])
+        
+        await query.edit_message_text("🗑️ Selecciona tarea:", reply_markup=InlineKeyboardMarkup(keyboard))
     
     elif data == "help":
         menu = get_admin_menu() if admin else get_user_menu()
-        await context.bot.send_message(
-            chat_id=chat_id,
-            text="📚 *Ayuda*\n\n➕ Añadir: Crear tarea (admin)\n📋 Ver: Todas las tareas\n🗑️ Eliminar: Borrar tarea (admin)\n⏰ Recordatorio: 2 días antes 3 PM",
+        await query.edit_message_text(
+            "📚 *Ayuda*\n\n➕ Añadir: Crear tarea (admin)\n📋 Ver: Todas las tareas\n🗑️ Eliminar: Borrar tarea (admin)\n⏰ Recordatorio: 2 días antes 3 PM",
             parse_mode="Markdown",
             reply_markup=menu
         )
-        return
     
     elif data == "menu":
         admin = await is_admin(update, context)
-        await context.bot.send_message(chat_id=chat_id, text="Selecciona:", reply_markup=get_admin_menu() if admin else get_user_menu())
-        return
+        await query.edit_message_text("Selecciona:", reply_markup=get_admin_menu() if admin else get_user_menu())
     
-    elif data.startswith("del_"):
+    elif data.startswith("d_"):
         if not admin:
-            await context.bot.send_message(chat_id=chat_id, text="❌ Solo administradores")
+            await query.edit_message_text("❌ Solo administradores")
             return
         
-        task_id = data.replace("del_", "")
+        task_id = data[2:]
         task = database.get_task_by_id(task_id)
         
-        if not task:
-            await context.bot.send_message(chat_id=chat_id, text="❌ No encontrada")
-            return
-        
-        database.delete_task(task_id, task["user_id"])
-        await context.bot.send_message(chat_id=chat_id, text=f"✅ Eliminada: {task['task_name']}", reply_markup=get_admin_menu())
-        return
+        if task:
+            database.delete_task(task_id, task["user_id"])
+            await query.edit_message_text(f"✅ Eliminada: {task['task_name']}", reply_markup=get_admin_menu())
+        else:
+            await query.edit_message_text("❌ No encontrada")
     
-    elif data.startswith("date_"):
+    elif data.startswith("t_"):
         if not admin:
-            await context.bot.send_message(chat_id=chat_id, text="❌ Solo administradores")
+            await query.edit_message_text("❌ Solo administradores")
             return
         
-        task_name = data.replace("date_tomorrow_", "").replace("date_dayafter_", "").replace("date_3days_", "").replace("date_week_", "").replace("date_other_", "")
-        
-        if "_other" in data:
-            user_data[user_id] = {"step": "date", "name": task_name}
-            await context.bot.send_message(chat_id=chat_id, text=f"📝 {task_name}\n\n📅 Escribe la fecha (YYYY-MM-DD):")
-            return
-        
-        due_date = None
-        if "_tomorrow" in data:
-            due_date = (datetime.date.today() + datetime.timedelta(days=1)).strftime("%Y-%m-%d")
-        elif "_dayafter" in data:
-            due_date = (datetime.date.today() + datetime.timedelta(days=2)).strftime("%Y-%m-%d")
-        elif "_3days" in data:
-            due_date = (datetime.date.today() + datetime.timedelta(days=3)).strftime("%Y-%m-%d")
-        elif "_week" in data:
-            due_date = (datetime.date.today() + datetime.timedelta(days=7)).strftime("%Y-%m-%d")
-        
-        if due_date:
+        parts = data.split("_", 2)
+        if len(parts) >= 3:
+            task_name = parts[1]
+            days = int(parts[2])
+            due_date = (datetime.date.today() + datetime.timedelta(days=days)).strftime("%Y-%m-%d")
+            
             database.add_task(user_id, query.from_user.username or "user", task_name, due_date)
-            await context.bot.send_message(chat_id=chat_id, text=f"✅ Creada: {task_name}\n📅 Fecha: {due_date}", reply_markup=get_admin_menu())
-        return
+            await query.edit_message_text(f"✅ Creada: {task_name}\n📅 {due_date}", reply_markup=get_admin_menu())
+    
+    elif data.startswith("o_"):
+        if not admin:
+            await query.edit_message_text("❌ Solo administradores")
+            return
+        
+        task_name = data[2:]
+        user_data[user_id] = f"waiting_date_{task_name}"
+        await query.edit_message_text(f"📝 {task_name}\n\n📅 Escribe la fecha (YYYY-MM-DD):")
 
 
 async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
-    chat_id = update.effective_chat.id
+    state = user_data.get(user_id, "")
     
-    if user_id not in user_data:
-        await start(update, context)
-        return
-    
-    state = user_data.get(user_id, {})
-    admin = await is_admin(update, context)
-    
-    if state.get("step") == "name":
+    if state == "waiting_name":
+        admin = await is_admin(update, context)
         if not admin:
+            await update.message.reply_text("❌ Solo administradores")
             del user_data[user_id]
-            await context.bot.send_message(chat_id=chat_id, text="❌ Solo administradores")
             return
         
         task_name = update.message.text
-        user_data[user_id] = {"step": "date", "name": task_name}
-        await context.bot.send_message(
-            chat_id=chat_id,
-            text=f"📝 {task_name}\n\n📅 Selecciona la fecha de entrega:",
+        user_data[user_id] = "waiting_date"
+        user_data[f"{user_id}_name"] = task_name
+        
+        await update.message.reply_text(
+            f"📝 {task_name}\n\n📅 Selecciona la fecha:",
             reply_markup=get_date_menu(task_name)
         )
-        return
     
-    elif state.get("step") == "date":
+    elif state == "waiting_date":
+        admin = await is_admin(update, context)
         if not admin:
+            await update.message.reply_text("❌ Solo administradores")
             del user_data[user_id]
-            await context.bot.send_message(chat_id=chat_id, text="❌ Solo administradores")
             return
         
         try:
             datetime.datetime.strptime(update.message.text, "%Y-%m-%d")
         except:
-            await context.bot.send_message(chat_id=chat_id, text="⚠️ Formato inválido. Usa: YYYY-MM-DD\nEjemplo: 2026-03-25")
+            await update.message.reply_text("⚠️ Formato inválido. Usa: YYYY-MM-DD\nEjemplo: 2026-03-25")
             return
         
-        name = state["name"]
-        database.add_task(user_id, update.effective_user.username or "user", name, update.message.text)
+        task_name = user_data.get(f"{user_id}_name", "Tarea")
+        database.add_task(user_id, update.effective_user.username or "user", task_name, update.message.text)
+        
         del user_data[user_id]
-        await context.bot.send_message(chat_id=chat_id, text=f"✅ Creada: {name}\n📅 {update.message.text}", reply_markup=get_admin_menu())
-        return
+        del user_data[f"{user_id}_name"]
+        
+        await update.message.reply_text(f"✅ Creada: {task_name}\n📅 {update.message.text}", reply_markup=get_admin_menu())
+    
+    elif state.startswith("waiting_date_"):
+        admin = await is_admin(update, context)
+        if not admin:
+            await update.message.reply_text("❌ Solo administradores")
+            del user_data[user_id]
+            return
+        
+        try:
+            datetime.datetime.strptime(update.message.text, "%Y-%m-%d")
+        except:
+            await update.message.reply_text("⚠️ Formato inválido. Usa: YYYY-MM-DD")
+            return
+        
+        task_name = state.replace("waiting_date_", "")
+        database.add_task(user_id, update.effective_user.username or "user", task_name, update.message.text)
+        
+        del user_data[user_id]
+        
+        await update.message.reply_text(f"✅ Creada: {task_name}\n📅 {update.message.text}", reply_markup=get_admin_menu())
+    
+    else:
+        await start(update, context)
 
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     if user_id in user_data:
         del user_data[user_id]
+    if f"{user_id}_name" in user_data:
+        del user_data[f"{user_id}_name"]
+    
     admin = await is_admin(update, context)
-    await context.bot.send_message(chat_id=update.effective_chat.id, text="❌ Cancelado", reply_markup=get_admin_menu() if admin else get_user_menu())
+    await update.message.reply_text("❌ Cancelado", reply_markup=get_admin_menu() if admin else get_user_menu())
